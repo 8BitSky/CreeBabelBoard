@@ -1,0 +1,193 @@
+#include <SPI.h>
+#include <Adafruit_VS1053.h>
+#include <SD.h>
+#include <Adafruit_PN532.h>
+#include <Adafruit_NeoPixel.h>
+
+
+//VS1053 - musicPlayer
+#define SHIELD_RESET  -1      // VS1053 reset pin (unused!)
+#define SHIELD_CS     7      // VS1053 chip select pin (output)
+#define SHIELD_DCS    6      // VS1053 Data/command select pin (output)
+#define CARDCS 4     // Card chip select pin
+#define DREQ 3       // VS1053 Data request, ideally an Interrupt pin
+
+Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, DREQ, CARDCS);
+
+//PN532 - nfc
+#define IRQ 2 
+#define RESET 8  
+
+Adafruit_PN532 nfc(IRQ, RESET);
+
+//Neopixels - strip
+#define LED_COUNT  60
+#define LED_PIN  10
+
+Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRBW);
+
+void setup() {
+  
+  Serial.begin(9600);
+
+  strip.begin();           
+  strip.show();            
+  strip.setBrightness(50);
+ 
+// initialise musicPlayer
+  if (! musicPlayer.begin()) { // initialise the music player
+     Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
+     while (1);
+  }
+  Serial.println(F("VS1053 found"));
+  musicPlayer.setVolume(0,0);
+  //musicPlayer.sineTest(0x44, 500);    // Make a tone to indicate VS1053 is working
+ 
+  if (!SD.begin(CARDCS)) {
+    Serial.println(F("SD failed, or not present"));
+    while (1);  // don't do anything more
+  }
+  Serial.println("SD OK!");
+
+// initialise nfc
+  nfc.begin();
+  nfc.SAMConfig();
+  
+}
+
+void loop() {
+
+  colorWheel();
+  delay(100);
+  
+Serial.print("Waiting for RFID...");
+  uint8_t success;
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 }; 
+  uint8_t uidLength;
+
+  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
+
+  uint32_t cardidentifier = 0;
+
+  if (success) {
+  Serial.print("Read: ");
+ 
+    cardidentifier = uid[3];
+    cardidentifier <<= 8; cardidentifier |= uid[2];
+    cardidentifier <<= 8; cardidentifier |= uid[1];
+    cardidentifier <<= 8; cardidentifier |= uid[0];
+     Serial.print(cardidentifier);
+//South Cards
+    if (cardidentifier == 1331259881) { 
+        pulseWhite(1);
+        musicPlayer.playFullFile("/009.mp3");
+    }
+    if (cardidentifier == 1317400361) {
+        pulseWhite(1);
+        musicPlayer.playFullFile("/010.mp3");
+    }
+    if (cardidentifier == 2577412073) { 
+        pulseWhite(1);
+        musicPlayer.playFullFile("/011.mp3");
+    }
+    if (cardidentifier == 1206323090) {
+        pulseWhite(1);
+        musicPlayer.playFullFile("/012.mp3");
+    }
+//West Cards
+    if (cardidentifier == 350254569) { 
+        pulseWhite(2);
+        musicPlayer.playFullFile("/013.mp3");
+    }  
+    if (cardidentifier == 1328740985) {
+        pulseWhite(2);
+        musicPlayer.playFullFile("/014.mp3");
+    }
+    if (cardidentifier == 1411657) { 
+        pulseWhite(2);
+        musicPlayer.playFullFile("/015.mp3");
+    }
+    if (cardidentifier == 1454132449) {
+        pulseWhite(2);
+        musicPlayer.playFullFile("/016.mp3");
+    }
+//North Cards
+    if (cardidentifier == 580275918) { 
+        pulseWhite(3);
+        musicPlayer.playFullFile("/001.mp3");
+    }
+    if (cardidentifier == 981833538) {
+        pulseWhite(3);
+        musicPlayer.playFullFile("/002.mp3");
+    }
+    if (cardidentifier == 983131522) { 
+        pulseWhite(3);
+        musicPlayer.playFullFile("/003.mp3");
+    }
+    if (cardidentifier == 965246322) {
+        pulseWhite(3);
+        musicPlayer.playFullFile("/004.mp3");
+    }
+//East Cards
+    if (cardidentifier == 965778562) { 
+        pulseWhite(4);
+        musicPlayer.playFullFile("/005.mp3");
+    }
+    if (cardidentifier == 1300581545) {
+        pulseWhite(4);
+        musicPlayer.playFullFile("/006.mp3");
+    }
+    if (cardidentifier == 43225841) { 
+        pulseWhite(4);
+        musicPlayer.playFullFile("/007.mp3");
+    }
+    if (cardidentifier == 1308590345) {
+        pulseWhite(4);
+        musicPlayer.playFullFile("/008.mp3");
+    }
+  }
+}
+
+void flashWhite(){
+    strip.fill(strip.Color(0,0,0,255),0,LED_COUNT);
+    strip.show();
+    delay(100);
+}
+
+void colorWheel(){
+   for(int j=0; j<250; j+=25) {
+     strip.fill(strip.Color(j,0,0,0), 0, 15); //Red
+     strip.fill(strip.Color(0,0,j,0), 15, 15);  //Blue
+     strip.fill(strip.Color(0,0,0,j), 30, 15); //White
+     strip.fill(strip.Color(j,j,0,0), 45, 15);  //Yellow
+     strip.show();
+     delay(20);
+  }
+}
+
+//Pulse direction as white, full quad
+void pulseWhite(int direction) {
+  strip.fill(strip.Color(0,0,0,0)); //Strip Off
+  strip.show();
+  int ledStart = 0;
+  switch(direction){
+    case 1: //South
+    ledStart = 0;
+    break;
+    case 2: //West
+    ledStart = 15;
+    break;
+    case 3: //North
+    ledStart = 30;
+    break;
+    case 4: //East
+    ledStart = 45;
+    break;
+  }
+   for(int j=0; j<250; j+=25) {
+    strip.fill(strip.Color(0,0,0,j), ledStart, 15);
+    strip.show();
+    delay(25);
+  }
+}
+  
