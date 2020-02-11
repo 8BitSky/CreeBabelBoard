@@ -78,7 +78,7 @@ Serial.print("Waiting for RFID...");
     cardidentifier <<= 8; cardidentifier |= uid[0];
      Serial.print(cardidentifier);
 //South Cards
-    if (cardidentifier == 1331259881) { 
+    if (cardidentifier == 983029634) { 
         pulseWhite(1);
         musicPlayer.playFullFile("/009.mp3");
     }
@@ -129,19 +129,19 @@ Serial.print("Waiting for RFID...");
         musicPlayer.playFullFile("/004.mp3");
     }
 //East Cards
-    if (cardidentifier == 965778562) { 
+    if (cardidentifier == 982512226) { 
         pulseWhite(4);
         musicPlayer.playFullFile("/005.mp3");
     }
-    if (cardidentifier == 1300581545) {
+    if (cardidentifier == 980333426) {
         pulseWhite(4);
         musicPlayer.playFullFile("/006.mp3");
     }
-    if (cardidentifier == 43225841) { 
+    if (cardidentifier == 964523938) { 
         pulseWhite(4);
         musicPlayer.playFullFile("/007.mp3");
     }
-    if (cardidentifier == 1308590345) {
+    if (cardidentifier ==  983140258) {
         pulseWhite(4);
         musicPlayer.playFullFile("/008.mp3");
     }
@@ -190,4 +190,3 @@ void pulseWhite(int direction) {
     delay(25);
   }
 }
-  
