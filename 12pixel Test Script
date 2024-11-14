@@ -1,0 +1,53 @@
+#include <Adafruit_NeoPixel.h>
+
+// Define the pin where the NeoPixel ring is connected
+#define LED_PIN 8
+// Define number of LEDs in the ring
+#define LED_COUNT 12
+
+// Initialize the NeoPixel ring
+Adafruit_NeoPixel ring(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+void setup() {
+  ring.begin();           // Initialize NeoPixel ring
+  ring.show();           // Turn off all pixels
+  ring.setBrightness(50); // Set brightness (0-255)
+}
+
+void loop() {
+  // Test 1: Single color rotation (red)
+  for(int i=0; i<LED_COUNT; i++) {
+    ring.clear();
+    ring.setPixelColor(i, ring.Color(255, 0, 0));    // Red
+    ring.show();
+    delay(100);
+  }
+  delay(500);
+
+  // Test 2: All LEDs different colors
+  for(int i=0; i<LED_COUNT; i++) {
+    switch(i % 3) {
+      case 0:
+        ring.setPixelColor(i, ring.Color(255, 0, 0));    // Red
+        break;
+      case 1:
+        ring.setPixelColor(i, ring.Color(0, 255, 0));    // Green
+        break;
+      case 2:
+        ring.setPixelColor(i, ring.Color(0, 0, 255));    // Blue
+        break;
+    }
+  }
+  ring.show();
+  delay(1000);
+
+  // Test 3: Rainbow fade
+  for(int i=0; i<LED_COUNT; i++) {
+    int r = random(0, 255);
+    int g = random(0, 255);
+    int b = random(0, 255);
+    ring.setPixelColor(i, ring.Color(r, g, b));
+  }
+  ring.show();
+  delay(1000);
+}
