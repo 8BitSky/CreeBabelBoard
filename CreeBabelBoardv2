@@ -1,0 +1,249 @@
+#include <SPI.h>
+#include <Adafruit_VS1053.h>
+#include <SD.h>
+#include <Adafruit_PN532.h>
+#include <Adafruit_NeoPixel.h>
+
+// VS1053 - musicPlayer
+#define SHIELD_RESET  -1
+#define SHIELD_CS     7
+#define SHIELD_DCS    6
+#define CARDCS 4
+#define DREQ 3
+
+// PN532 - nfc
+#define IRQ 2 
+#define RESET 8  
+
+// Neopixels - strip
+#define LED_COUNT  12
+#define LED_PIN  8
+#define LED_BRIGHTNESS 50
+//#define COLOR_WHEEL_INTERVAL 20
+#define PULSE_INTERVAL 25
+#define DIRECTION_SEGMENT_SIZE 3
+
+// Colors
+#define COLOR_RED strip.Color(255, 0, 0)
+#define COLOR_BLUE strip.Color(0, 0, 255)
+#define COLOR_GREEN strip.Color(0, 255, 0)
+#define COLOR_YELLOW strip.Color(255, 255, 0)
+#define COLOR_WHITE strip.Color(255, 255, 255)
+
+// Timing constants
+const unsigned long ANIMATION_INTERVAL = 100;  // Increased animation speed
+
+// Card definitions structure
+struct CardAction {
+    uint32_t id;
+    uint8_t direction;
+    const char* file;
+};
+
+// Store card definitions in program memory
+const CardAction cardActions[] PROGMEM = {
+    // South Cards (0-2)
+    {983029634, 1, "/009.mp3"},
+    {1317400361, 1, "/010.mp3"},
+    {2577412073, 1, "/011.mp3"},
+    {1206323090, 1, "/012.mp3"},
+    // West Cards (3-5)
+    {350254569, 2, "/013.mp3"},
+    {1328740985, 2, "/014.mp3"},
+    {1411657, 2, "/015.mp3"},
+    {1454132449, 2, "/016.mp3"},
+    // North Cards (6-8)
+    {580275918, 3, "/001.mp3"},
+    {981833538, 3, "/002.mp3"},
+    {983131522, 3, "/003.mp3"},
+    {965246322, 3, "/004.mp3"},
+    // East Cards (9-11)
+    {982512226, 4, "/005.mp3"},
+    {980333426, 4, "/006.mp3"},
+    {964523938, 4, "/007.mp3"},
+    {983140258, 4, "/008.mp3"}
+};
+
+const uint8_t NUM_CARDS = sizeof(cardActions) / sizeof(CardAction);
+
+// Global objects
+Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, DREQ, CARDCS);
+Adafruit_PN532 nfc(IRQ, RESET);
+Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Global timing variables
+unsigned long previousMillis = 0;
+unsigned long previousAnimationMillis = 0;
+//uint8_t animationState = 0;
+
+void setup() {
+    Serial.begin(9600);
+
+    // Initialize NeoPixels
+    strip.begin();
+    strip.setBrightness(LED_BRIGHTNESS);
+    strip.clear();  // Clear any random startup data
+    strip.show();
+    
+    // Initialize VS1053 Music Player
+    if (!musicPlayer.begin()) {
+        Serial.println(F("VS1053 not found"));
+        while (1);
+    }
+    Serial.println(F("VS1053 found"));
+    musicPlayer.setVolume(20, 20);  // Set initial volume (lower = louder)
+    
+    // Initialize SD Card
+    if (!SD.begin(CARDCS)) {
+        Serial.println(F("SD failed"));
+        while (1);
+    }
+    Serial.println(F("SD OK!"));
+
+    // Initialize NFC
+    nfc.begin();
+    nfc.SAMConfig();
+    
+    // Initial LED test
+    flashWhite();
+    delay(500);
+    strip.clear();
+    strip.show();
+}
+
+void loop() {
+    unsigned long currentMillis = millis();
+
+    // Continuously run the colorWheel animation for smooth transitions
+    if (currentMillis - previousAnimationMillis >= ANIMATION_INTERVAL) {
+        previousAnimationMillis = currentMillis;
+        colorWheel();  // Ensure colorWheel runs continuously
+    }
+
+    // Non-blocking NFC check
+    uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+    uint8_t uidLength;
+
+    if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength)) {
+        uint32_t cardidentifier = ((uint32_t)uid[3] << 24) | 
+                                 ((uint32_t)uid[2] << 16) | 
+                                 ((uint32_t)uid[1] << 8) | 
+                                 uid[0];
+        
+        handleCard(cardidentifier);
+    }
+}
+
+void handleCard(uint32_t cardidentifier) {
+    for (uint8_t i = 0; i < NUM_CARDS; i++) {
+        CardAction action;
+        memcpy_P(&action, &cardActions[i], sizeof(CardAction));
+        
+        if (action.id == cardidentifier) {
+            // Stop any current animation and flash white before playing audio
+            strip.clear();
+            strip.show();
+
+            //Code on original 60 pixel ring
+            //flashWhite();  // Flash white before audio playback
+            //pulseWhite(action.direction);
+
+            //added for desk version
+            rampUpToWhite();
+            musicPlayer.playFullFile(action.file);
+            
+            // Clear after playing
+            //Code on original 60 pixel ring
+            //strip.clear();
+            //strip.show();
+            //delay(100);  // Small delay before resuming animation
+            rampDownToBlack();
+            break;
+        }
+    }
+}
+
+void colorWheel() {
+    // South (0-2): Solid Red
+    for (int i = 0; i < DIRECTION_SEGMENT_SIZE; i++) {
+        strip.setPixelColor(i, COLOR_RED);  // Full red
+    }
+    
+    // West (3-5): Solid Blue
+    for (int i = DIRECTION_SEGMENT_SIZE; i < DIRECTION_SEGMENT_SIZE * 2; i++) {
+        strip.setPixelColor(i, COLOR_BLUE);  // Full blue
+    }
+    
+    // North (6-8): Solid Green
+    for (int i = DIRECTION_SEGMENT_SIZE * 2; i < DIRECTION_SEGMENT_SIZE * 3; i++) {
+        strip.setPixelColor(i, COLOR_GREEN);  // Full green
+    }
+    
+    // East (9-11): Solid Yellow
+    for (int i = DIRECTION_SEGMENT_SIZE * 3; i < LED_COUNT; i++) {
+        strip.setPixelColor(i, COLOR_YELLOW);  // Full yellow
+    }
+    
+    strip.show();  // Display the colors
+}
+
+void pulseWhite(uint8_t direction) {
+    int ledStart = (direction - 1) * DIRECTION_SEGMENT_SIZE;
+    
+    // Fade up
+    for (uint8_t brightness = 0; brightness < 255; brightness += 5) {
+        for (uint8_t i = 0; i < DIRECTION_SEGMENT_SIZE; i++) {
+            strip.setPixelColor(ledStart + i, strip.Color(brightness, brightness, brightness));
+        }
+        strip.show();
+        delay(PULSE_INTERVAL/2);  // Faster pulse
+    }
+    
+    // Fade down
+    for (uint8_t brightness = 255; brightness > 0; brightness -= 5) {
+        for (uint8_t i = 0; i < DIRECTION_SEGMENT_SIZE; i++) {
+            strip.setPixelColor(ledStart + i, strip.Color(brightness, brightness, brightness));
+        }
+        strip.show();
+        delay(PULSE_INTERVAL/2);  // Faster pulse
+    }
+}
+
+void flashWhite() {
+    // Quick white flash for testing
+    for (uint8_t i = 0; i < LED_COUNT; i++) {
+        strip.setPixelColor(i, COLOR_WHITE);
+    }
+    strip.show();
+    delay(100);
+    strip.clear();
+    strip.show();
+}
+
+void rampUpToWhite() {
+    unsigned long rampStartTime = millis();
+    unsigned long rampDuration = 500;  // 0.5 seconds
+
+    while (millis() - rampStartTime < rampDuration) {
+        int brightness = map(millis() - rampStartTime, 0, rampDuration, 0, 255);
+        for (int i = 0; i < LED_COUNT; i++) {
+            strip.setPixelColor(i, strip.Color(brightness, brightness, brightness));
+        }
+        strip.show();
+        delay(10);  // Smaller delay for smoother updates
+    }
+}
+
+void rampDownToBlack() {
+    unsigned long rampStartTime = millis();
+    unsigned long rampDuration = 500;  // 0.5 seconds
+
+    while (millis() - rampStartTime < rampDuration) {
+        int brightness = map(millis() - rampStartTime, 0, rampDuration, 255, 0);
+        for (int i = 0; i < LED_COUNT; i++) {
+            strip.setPixelColor(i, strip.Color(brightness, brightness, brightness));
+        }
+        strip.show();
+        delay(10);  // Smaller delay for smoother updates
+    }
+}
